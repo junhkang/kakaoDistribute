@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kakaoDistribute.mapper.kaoDistributeMapper">
+	<select id="checkTokenExist" parameterType = "HashMap" resultType="int">
+		SELECT count(1) from kakao_distribute where token = #{randomToken}
+	</select>
+	<select id="selectDistSeq" parameterType = "HashMap" resultType="long">
+		SELECT nextval('kao_dist_seq')
+	</select>
+	<insert id="insertDistribute" parameterType = "HashMap">
+		insert into kakao_distribute	(
+			kao_dist_id,
+			sender,
+			room,
+			amount,
+			target_cnt,
+			token,
+			datecreated,
+			createdby
+		)	values	(
+			#{kao_dist_id},
+			#{sender},
+			#{room},
+			#{amount},
+			#{target_cnt},
+			#{token},
+			current_timestamp,
+			#{sender}
+		)
+	</insert>
+	<insert id="insertDistributeDetail" parameterType = "HashMap">
+		insert into kakao_distribute_detail	(
+			kao_dist_id,
+			kao_dist_detail_id,
+			each_amount,
+			receiver,
+			datecreated,
+			createdby
+		)	values	(
+			#{kao_dist_id},
+			nextval('kao_dist_detail_seq'),
+			#{each_amount},
+			null,
+			current_timestamp,
+			#{sender}
+		)
+	</insert>
+	<select id="selectDistributeInfo" parameterType = "HashMap" resultType="HashMap">
+		select * from kakao_distribute 
+		where room =#{room} 
+			and token = #{token}
+			and datecreated  <![CDATA[ >=  ]]> current_timestamp::timestamp - interval '10 min'
+	</select>
+	<select id="selectDistributeDetail" parameterType = "HashMap" resultType="HashMap">
+		select * from (
+			select ROW_NUMBER() OVER (ORDER BY kd.kao_dist_id) AS ROW,
+			kdd.* from kakao_distribute kd,
+			kakao_distribute_detail kdd
+			where kd.kao_dist_id = kdd.kao_dist_id
+			and  kd.room = #{room}
+			and kd.token = #{token}
+			and kd.kao_dist_id = #{kao_dist_id}
+			and kdd.receiver is null
+			
+			) T
+			where T.ROW =1
+	</select>
+	<update id="updateDistDetail" parameterType = "HashMap">
+		update
+			kakao_distribute_detail
+		set receiver = #{receiver},
+			datemodified = current_timestamp,
+			modifiedby = #{receiver}
+		where
+			kao_dist_detail_id = #{kao_dist_detail_id}
+			and receiver is null
+			
+	</update>
+	<select id="selectDistributeDetailResult" parameterType = "HashMap" resultType="HashMap">
+		select 
+			kdd.each_amount as price from kakao_distribute kd,
+			kakao_distribute_detail kdd
+			where kd.kao_dist_id = kdd.kao_dist_id
+			and  kd.room = #{room}
+			and kd.token = #{token}
+			and kdd.receiver = #{receiver}
+			
+	</select>
+	<select id="selectDistributeInfoWithSender" parameterType = "HashMap" resultType="HashMap">
+		select kao_dist_id as kao_dist_id,
+			to_char(datecreated, 'YYYYMMDDHH24MISS') as datecreated,
+			amount as amount,
+			room as room,
+			token as token,
+			sender as sender,
+			dist_sum as dist_sum
+		
+		 from (
+				select 
+					kd.kao_dist_id,
+					kd.datecreated, 
+					kd.amount,
+					kd.room,
+					kd.token,
+					kd.sender,
+					COALESCE(kdd.dist_sum,0) as dist_sum
+				from 
+					kakao_distribute kd
+				left join (
+					select kao_dist_id, sum(each_amount) as dist_sum from kakao_distribute_detail 
+					where receiver is not null
+					group by kao_dist_id)	kdd
+			on kd.kao_dist_id = kdd.kao_dist_id
+			) T 
+		where T.room = #{room} 
+			and T.sender = #{sender}
+			and T.token = #{token}
+		and datecreated  <![CDATA[ >=  ]]> current_timestamp::timestamp - interval '7 day'
+		
+			
+	</select>
+	<select id="selectDistDoneDetail" parameterType = "HashMap" resultType="HashMap">
+		select receiver, each_amount from kakao_distribute_detail
+		where kao_dist_id = #{kao_dist_id}
+		and receiver is not null
+			
+	</select>
+</mapper>
