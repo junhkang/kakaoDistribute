@@ -1,5 +1,5 @@
 # kakaoDistribute
-카카오 뿌리기
+KakaoDistribute
 
 [상세 개발 정보]
 1. 개발 언어 : JAVA (1.8)
